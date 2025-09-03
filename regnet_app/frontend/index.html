@@ -6,10 +6,15 @@
 <title>RegNet APP — 带注释的调控网络</title>
 <style>
 body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-#app{display:grid;grid-template-columns:360px 1fr;grid-template-rows:auto 1fr auto;height:100vh}
-header{grid-column:1/3;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #eee;background:#fafafa}
+html,body{height:100%}
+#app{display:grid;grid-template-columns:360px 1fr;grid-template-rows:auto 1fr auto;height:100vh;overflow:hidden}
 #sidebar{padding:10px;border-right:1px solid #eee;overflow:auto}
-#cy{height:100%;}
+
+header{grid-column:1 / -1; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 10px; border-bottom:1px solid #eee; min-height:56px}
+
+/* 固定主区域高度 = 视口高度 - 头部高度（运行时再精确修正） */
+main{display:grid;grid-template-rows:minmax(360px,1fr) minmax(220px,35%);height:calc(100vh - 56px)}
+#cy{height:100%;min-height:360px;overflow:hidden}
 .tiny{font-size:12px;color:#666}
 input,select,button{padding:6px 8px;border:1px solid #ddd;border-radius:8px}
 button{cursor:pointer;background:#fff}
@@ -17,7 +22,7 @@ button{cursor:pointer;background:#fff}
 .badge{display:inline-block;padding:2px 6px;border-radius:6px;background:#eef;margin-right:4px}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th,td{border-bottom:1px solid #eee;padding:6px 8px;text-align:left;vertical-align:top}
-section{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #eee}
+section{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #eee;overflow:auto}
 </style>
 </head>
 <body>
@@ -94,7 +99,7 @@ section{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #eee}
   </div>
 </aside>
 
-<main style="display:grid;grid-template-rows:65% 35%">
+<main>
   <div id="cy" style="border-top:1px solid #eee"></div>
   <section>
     <div style="padding:8px">
@@ -122,7 +127,7 @@ const cy = cytoscape({ container: document.getElementById('cy'),
     { selector:'edge', style:{ 'curve-style':'bezier','width':0.8,'line-color':'#bbb','target-arrow-shape':'triangle','target-arrow-color':'#bbb' }},
     { selector:'edge[source = target]', style:{ 'curve-style':'bezier','control-point-step-size':30,'loop-direction':'-45deg','loop-sweep':'30deg','width':1.2,'line-color':'#999' }},
     { selector:'.hi', style:{ 'line-color':'#ff6666','target-arrow-color':'#ff6666','width':2 }}
-  ], layout:{name:'cose'}, wheelSensitivity:0.2 });
+    ], layout:{name:'cose'}, wheelSensitivity:0.2, minZoom:0.5, maxZoom:5 });
 
 const $ = (id)=>document.getElementById(id);
 let CURRENT_SEED = null;
@@ -205,7 +210,9 @@ $('show').onclick = async ()=>{
     const res = await GET(`/api/neighborhood/${id}?hops=${hops}&direction=both&rr_only=${rr}&tf_min=${tf}&tgt_min=${tgt}`);
     cy.elements().remove();
     cy.add(buildElements(res.nodes, res.edges));
-    cy.layout({name:'cose'}).run(); cy.fit(cy.elements(), 60);
+    cy.layout({name:'cose'}).run();
+    fitStable(null, 60);
+    adjustHeights({fit:false});
     const ann = await GET(`/api/node/${id}`);
     $('info').innerHTML = infoHTML(ann);
     const up = await GET(`/api/neighborhood/${id}?hops=1&direction=in`);
@@ -228,7 +235,9 @@ $('full').onclick = async ()=>{
     const res = await GET(`/api/neighborhood/${seed}?hops=5&direction=both&rr_only=${rr}&tf_min=${tf}&tgt_min=${tgt}`);
     cy.elements().remove();
     cy.add(buildElements(res.nodes, res.edges));
-    cy.layout({name:'cose'}).run(); cy.fit(cy.elements(), 60);
+    cy.layout({name:'cose'}).run();
+    fitStable(null, 60);
+    adjustHeights({fit:false});
   }catch(e){ showError(e); }
 };
 
@@ -245,7 +254,10 @@ $('go').onclick = async ()=>{
     if(res.nodes.length===0){ showError('没有找到有向最短路径'); return; }
     cy.elements().remove();
     cy.add(buildElements(res.nodes, res.edges));
-    cy.layout({name:'breadthfirst', directed:true}).run(); cy.fit(cy.elements(), 60);
+    const prevZoom = cy.zoom();
+    cy.layout({name:'breadthfirst', directed:true}).run();
+    fitStable(prevZoom, 60);           // 若同一路径，维持上一次 zoom，不再越缩越小
+    adjustHeights({fit:false});
     res.edges.forEach(e=>{ const ed=cy.$(`edge[id = "${e[0]}->${e[1]}"]`); ed.addClass('hi'); });
   }catch(e){ showError(e); }
 };
@@ -356,6 +368,26 @@ function downloadCSV(rows, filename){
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
 }
+// 保持缩放稳定：如果新 fit 的 zoom 比原来更小，就回退到原来的 zoom，避免反复点击越缩越小
+function fitStable(prevZoom=null, padding=60){
+  cy.fit(cy.elements(), padding);
+  if(prevZoom!==null && cy.zoom() < prevZoom){
+    const z = prevZoom;
+    cy.center();
+    cy.zoom(z);
+  }
+}
+// --- 自适应高度，防止 Cytoscape 拉长页面 ---
+function adjustHeights(options={fit:true}){
+  const headerH = document.querySelector('header')?.offsetHeight || 56;
+  const m = document.querySelector('main');
+  if(m){
+    m.style.height = `calc(100vh - ${headerH}px)`;
+  }
+  cy.resize();
+  if(options.fit && cy.elements().length){ cy.fit(cy.elements(), 60); }
+}
+window.addEventListener('resize', ()=>adjustHeights({fit:true}));
 
 cy.on('tap','node', async evt=>{
   const id = evt.target.id();
@@ -369,7 +401,7 @@ cy.on('tap','node', async evt=>{
   }catch(e){ showError(e); }
 });
 
-window.addEventListener('load', ()=> $('ping').click());
+window.addEventListener('load', ()=> { $('ping').click(); adjustHeights({fit:true}); });
 $('q').value = 'SCO5231'; // 默认示例
 </script>
 </body>
