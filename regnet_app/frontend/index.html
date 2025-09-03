@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RegNet APP — 带注释的调控网络</title>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+#app{display:grid;grid-template-columns:360px 1fr;grid-template-rows:auto 1fr auto;height:100vh}
+header{grid-column:1/3;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #eee;background:#fafafa}
+#sidebar{padding:10px;border-right:1px solid #eee;overflow:auto}
+#cy{height:100%;}
+.tiny{font-size:12px;color:#666}
+input,select,button{padding:6px 8px;border:1px solid #ddd;border-radius:8px}
+button{cursor:pointer;background:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.badge{display:inline-block;padding:2px 6px;border-radius:6px;background:#eef;margin-right:4px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border-bottom:1px solid #eee;padding:6px 8px;text-align:left;vertical-align:top}
+section{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #eee}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div style="display:flex;gap:8px;align-items:center">
+    <b>RegNet APP</b>
+    <span class="tiny" id="meta"></span>
+  </div>
+  <div>
+    <label class="tiny">Backend URL</label>
+    <input id="base" value="http://127.0.0.1:8000"/>
+    <button id="ping">Connect</button>
+  </div>
+</header>
+
+<aside id="sidebar">
+    <div class="tiny" style="margin-top:10px">Analysis / 分析</div>
+    <div>
+        <button id="btn_metrics">Metrics 指标</button>
+        <button id="btn_keynodes">Key nodes 关键节点</button>
+        <button id="btn_paths">Two-step paths 二跳通路</button>
+        <button id="btn_nodes_metrics">Export nodes+metrics</button>
+        <button id="btn_edges_full">Export edges</button>
+        <button id="btn_report">Download report.md</button>
+    </div>
+
+    <div class="tiny" style="margin-top:10px">Current View / 当前视图导出</div>
+    <div>
+        <button id="btn_exp_view">Export shown graph</button>
+        <button id="btn_exp_tables">Export upstream/downstream</button>
+    </div>
+    <div class="tiny" style="margin-top:10px">Motifs / 模式</div>
+    <div>
+      <button id="btn_ffl">Export FFL</button>
+      <button id="btn_bifan">Export Bi-fan</button>
+    </div>
+  <div class="tiny">Search / 搜索</div>
+  <p class="tiny" style="line-height:1.2;margin:6px 0 0 0;">
+    <b>说明：</b> “Show ego 1-hop” 以输入基因为中心展示1跳邻域；“Show wide (filtered)” 从输入基因出发展示更广邻域（受下方过滤影响）；“Filters” 设最少上游TF数与下游靶数；“Reg→Reg only” 仅保留 TF→TF 边；“Find” 计算 Source→Target 的最短有向路径并高亮。
+  </p>
+  <input id="q" list="nodes" placeholder="SCOxxxx"/><datalist id="nodes"></datalist>
+  <div style="margin:6px 0">
+    <button id="show">Show ego 1-hop</button>
+    <button id="full">Show wide (filtered)</button>
+  </div>
+
+  <div class="tiny" style="margin-top:6px">Filters / 过滤</div>
+  <div class="grid">
+    <label class="tiny">TF_Count ≥ <b id="tfv">0</b></label>
+    <input type="range" id="tf" min="0" max="50" step="1" value="0"/>
+    <label class="tiny">Target_Count ≥ <b id="tgtv">0</b></label>
+    <input type="range" id="tgt" min="0" max="100" step="1" value="0"/>
+  </div>
+  <div class="tiny" style="margin-top:6px">Mode</div>
+  <div>
+    <label class="tiny"><input type="checkbox" id="rr"/> Reg→Reg only</label>
+  </div>
+
+  <div class="tiny" style="margin-top:6px">Shortest Path / 最短路径</div>
+  <input id="src" list="nodes" placeholder="Source"/>
+  <input id="dst" list="nodes" placeholder="Target"/>
+  <button id="go">Find</button>
+
+  <div class="tiny" style="margin-top:6px">Annotation / 注释</div>
+  <div id="info" class="tiny">—</div>
+
+  <div class="tiny" style="margin-top:6px">Exports / 导出</div>
+  <div>
+    <button id="exp_hub">Hub TFs</button>
+    <button id="exp_hr">Highly Regulated</button>
+    <button id="exp_self">Self TFs</button>
+    <button id="exp_scc">SCC</button>
+  </div>
+</aside>
+
+<main style="display:grid;grid-template-rows:65% 35%">
+  <div id="cy" style="border-top:1px solid #eee"></div>
+  <section>
+    <div style="padding:8px">
+      <h3>Upstream Regulators</h3>
+      <table id="up"><thead><tr><th>Regulator</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div style="padding:8px">
+      <h3>Downstream Targets</h3>
+      <table id="down"><thead><tr><th>Target</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+</main>
+</div>
+
+<script>
+    function showError(msg){
+      alert((typeof msg === 'string') ? msg : (msg.detail || JSON.stringify(msg)));
+    }
+</script>
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<script>
+const cy = cytoscape({ container: document.getElementById('cy'),
+  elements: [], style: [
+    { selector:'node', style:{ 'width':14,'height':14,'label':'data(id)','font-size':9,'text-valign':'center','text-halign':'center','background-color':'#6fa8dc','color':'#222' }},
+    { selector:'edge', style:{ 'curve-style':'bezier','width':0.8,'line-color':'#bbb','target-arrow-shape':'triangle','target-arrow-color':'#bbb' }},
+    { selector:'edge[source = target]', style:{ 'curve-style':'bezier','control-point-step-size':30,'loop-direction':'-45deg','loop-sweep':'30deg','width':1.2,'line-color':'#999' }},
+    { selector:'.hi', style:{ 'line-color':'#ff6666','target-arrow-color':'#ff6666','width':2 }}
+  ], layout:{name:'cose'}, wheelSensitivity:0.2 });
+
+const $ = (id)=>document.getElementById(id);
+let CURRENT_SEED = null;
+let CURRENT_GRAPH = {nodes:[], edges:[]};  // edges: [ [u,v], ... ]
+let LAST_UP = [];
+let LAST_DOWN = [];
+function setMeta(txt){ $('meta').textContent = txt; }
+function optionize(list){ const dl = $('nodes'); dl.innerHTML=''; list.forEach(id=>{ const o=document.createElement('option'); o.value=id; dl.appendChild(o); }); }
+function infoHTML(d){
+  const keys = Object.keys(d);
+  let html = `<div><b>${d.GeneID || d.id || '—'}</b></div>`;
+  html += `<div class="tiny">Is_TF: ${d.Is_TF} | TF_Count: ${d.TF_Count} | Target_Count: ${d.Target_Count}</div>`;
+  keys.forEach(k=>{
+    if(['GeneID','Is_TF','TF_Count','Target_Count','_ID_'].includes(k)) return;
+    const v = (d[k]===undefined || d[k]==="" || d[k]===null) ? "—" : d[k];
+    html += `<div><span class="badge">${k}</span> ${v}</div>`;
+  });
+  return html;
+}
+function fillTable(tblId, arr){
+  const tb = document.querySelector(`#${tblId} tbody`); tb.innerHTML='';
+  arr.forEach(x=>{ tb.insertAdjacentHTML('beforeend', `<tr><td>${x}</td></tr>`); });
+  if(tblId==='up') LAST_UP = [...arr];
+  if(tblId==='down') LAST_DOWN = [...arr];
+}
+function buildElements(nodes, edges){
+  CURRENT_GRAPH = { nodes:[...nodes], edges:[...edges] };
+  return {
+    nodes: nodes.map(id=>({ data: { id } })),
+    edges: edges.map(e=>({ data: { id:`${e[0]}->${e[1]}`, source: e[0], target: e[1] }})),
+  };
+}
+
+let BASE = $('base').value;
+
+async function GET(path){
+  const r = await fetch(BASE + path);
+  if(!r.ok){
+    let t; try{ t = await r.json(); }catch{ t = await r.text(); }
+    throw t || {detail:`HTTP ${r.status}`};
+  }
+  return await r.json();
+}
+async function POST(path, body){
+  const r = await fetch(BASE + path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if(!r.ok){
+    let t; try{ t = await r.json(); }catch{ t = await r.text(); }
+    throw t || {detail:`HTTP ${r.status}`};
+  }
+  return await r.json();
+}
+
+$('ping').onclick = async ()=>{
+  BASE = $('base').value;
+  try{
+    const h = await GET('/api/health');
+    setMeta(`nodes=${h.nodes} edges=${h.edges}`);
+    const ids = await GET('/api/search?q=SCO&limit=50000');
+    optionize(ids.items);
+  }catch(e){ setMeta('connect failed'); console.error(e); }
+};
+
+$('tf').oninput = (e)=>{ $('tfv').textContent = e.target.value; };
+$('tgt').oninput = (e)=>{ $('tgtv').textContent = e.target.value; };
+
+$('show').onclick = async ()=>{
+  const id = $('q').value.trim();
+  CURRENT_SEED = id;
+  if(!id) return;
+  try{
+    // 先确认是否在网络中
+    const check = await GET(`/api/search?q=${encodeURIComponent(id)}&limit=1`);
+    if(!check.items || check.items[0] !== id){
+      showError({detail:`${id} 不在当前网络节点集合中，请从下拉建议中选择一个节点。`});
+      return;
+    }
+    const rr = $('rr').checked;
+    const hops = 1;
+    const tf = parseInt($('tf').value), tgt = parseInt($('tgt').value);
+    const res = await GET(`/api/neighborhood/${id}?hops=${hops}&direction=both&rr_only=${rr}&tf_min=${tf}&tgt_min=${tgt}`);
+    cy.elements().remove();
+    cy.add(buildElements(res.nodes, res.edges));
+    cy.layout({name:'cose'}).run(); cy.fit(cy.elements(), 60);
+    const ann = await GET(`/api/node/${id}`);
+    $('info').innerHTML = infoHTML(ann);
+    const up = await GET(`/api/neighborhood/${id}?hops=1&direction=in`);
+    const down = await GET(`/api/neighborhood/${id}?hops=1&direction=out`);
+    fillTable('up', up.nodes.filter(x=>x!==id)); fillTable('down', down.nodes.filter(x=>x!==id));
+      }catch(e){ showError(e); }
+};
+
+$('full').onclick = async ()=>{
+    try{
+    const rr = $('rr').checked;
+    const tf = parseInt($('tf').value), tgt = parseInt($('tgt').value);
+    const seed = $('q').value.trim() || 'SCO0001';
+    const check = await GET(`/api/search?q=${encodeURIComponent(seed)}&limit=1`);
+    CURRENT_SEED = seed;
+    if(!check.items || check.items[0] !== seed){
+      showError({detail:`种子节点 ${seed} 不在网络中，请从下拉建议中选择一个节点。`});
+      return;
+    }
+    const res = await GET(`/api/neighborhood/${seed}?hops=5&direction=both&rr_only=${rr}&tf_min=${tf}&tgt_min=${tgt}`);
+    cy.elements().remove();
+    cy.add(buildElements(res.nodes, res.edges));
+    cy.layout({name:'cose'}).run(); cy.fit(cy.elements(), 60);
+  }catch(e){ showError(e); }
+};
+
+$('go').onclick = async ()=>{
+  const s = $('src').value.trim(); const d = $('dst').value.trim();
+  if(!s||!d) return;
+  try{
+    const cs = await GET(`/api/search?q=${encodeURIComponent(s)}&limit=1`);
+    const cd = await GET(`/api/search?q=${encodeURIComponent(d)}&limit=1`);
+    if(!cs.items || cs.items[0]!==s || !cd.items || cd.items[0]!==d){
+      showError({detail:`${s} 或 ${d} 不在网络中，请从下拉建议选择。`}); return;
+    }
+    const res = await POST('/api/path', {source:s, target:d});
+    if(res.nodes.length===0){ showError('没有找到有向最短路径'); return; }
+    cy.elements().remove();
+    cy.add(buildElements(res.nodes, res.edges));
+    cy.layout({name:'breadthfirst', directed:true}).run(); cy.fit(cy.elements(), 60);
+    res.edges.forEach(e=>{ const ed=cy.$(`edge[id = "${e[0]}->${e[1]}"]`); ed.addClass('hi'); });
+  }catch(e){ showError(e); }
+};
+
+$('exp_hub').onclick = async ()=>{ const rows = await GET('/api/exports/hubs'); downloadCSV(rows, 'hub_tfs.csv'); };
+$('exp_hr').onclick = async ()=>{ const rows = await GET('/api/exports/highly_regulated'); downloadCSV(rows, 'highly_regulated.csv'); };
+$('exp_self').onclick = async ()=>{ const rows = await GET('/api/exports/self_regulators'); downloadCSV(rows, 'self_regulators.csv'); };
+$('exp_scc').onclick = async ()=>{ const rows = await GET('/api/exports/scc'); downloadCSV(rows, 'scc.csv'); };
+$('btn_metrics').onclick = async ()=>{
+  try{
+    const m = await GET('/api/analysis/metrics');
+    $('info').innerHTML = `<pre class="tiny">${JSON.stringify(m, null, 2)}</pre>`;
+    downloadText(JSON.stringify(m, null, 2), 'metrics.json', 'application/json;charset=utf-8;');
+  }catch(e){ showError(e); }
+};
+
+$('btn_keynodes').onclick = async ()=>{
+  try{
+    const kn = await GET('/api/analysis/key_nodes');
+    $('info').innerHTML = `<pre class="tiny">${JSON.stringify(kn, null, 2)}</pre>`;
+    const rows = [];
+    (kn.high_degree_nodes||[]).forEach(([id,score])=>rows.push({category:'degree', id, value:score}));
+    (kn.high_betweenness_nodes||[]).forEach(([id,score])=>rows.push({category:'betweenness', id, value:score}));
+    (kn.high_closeness_nodes||[]).forEach(([id,score])=>rows.push({category:'closeness', id, value:score}));
+    (kn.high_eigenvector_nodes||[]).forEach(([id,score])=>rows.push({category:'eigenvector', id, value:score}));
+    downloadCSV(rows, 'key_nodes.csv');
+  }catch(e){ showError(e); }
+};
+
+$('btn_paths').onclick = async ()=>{
+  try{
+    const res = await GET('/api/analysis/two_step_paths?top_k=50');
+    const rows = (res.items||[]).map(x=>({u:x.path[0], v:x.path[1], w:x.path[2], count:x.count}));
+    $('info').innerHTML = `<pre class="tiny">${JSON.stringify(rows.slice(0,10), null, 2)}\n…</pre>`;
+    downloadCSV(rows, 'two_step_paths.csv');
+  }catch(e){ showError(e); }
+};
+
+$('btn_nodes_metrics').onclick = async ()=>{
+  try{
+    const rows = await GET('/api/exports/nodes_with_metrics');
+    downloadCSV(rows, 'nodes_with_metrics.csv');
+  }catch(e){ showError(e); }
+};
+
+$('btn_edges_full').onclick = async ()=>{
+  try{
+    const rows = await GET('/api/exports/edges_full');
+    downloadCSV(rows, 'edges_full.csv');
+  }catch(e){ showError(e); }
+};
+
+$('btn_report').onclick = async ()=>{
+  try{
+    const r = await GET('/api/report');
+    downloadText(r.markdown||'# report', 'RegNet_report.md', 'text/markdown;charset=utf-8;');
+  }catch(e){ showError(e); }
+};
+
+$('btn_ffl').onclick = async ()=>{
+  try{
+    // 默认不过滤 TF（rr_only=false），也可改 true 仅看 TF-FFL
+    const res = await GET('/api/motifs/ffl?rr_only=false&limit=50000');
+    const rows = res.items || [];
+    if(rows.length===0){ alert('No FFL motifs found (with current settings).'); return; }
+    downloadCSV(rows, 'motifs_ffl.csv');
+    $('info').innerHTML = `<pre class="tiny">FFL: ${rows.length} rows exported.</pre>`;
+  }catch(e){ showError(e); }
+};
+
+$('btn_bifan').onclick = async ()=>{
+  try{
+    // 默认 rr_only=true（A、B 必须为 TF），共享下游至少 2 个，适度限制展开规模
+    const res = await GET('/api/motifs/bifan?min_shared=2&rr_only=true&limit=50000&expand_limit_per_pair=200');
+    const rows = res.items || [];
+    if(rows.length===0){ alert('No Bi-fan motifs found (with current settings).'); return; }
+    downloadCSV(rows, 'motifs_bifan.csv');
+    $('info').innerHTML = `<pre class="tiny">Bi-fan: ${rows.length} rows exported.</pre>`;
+  }catch(e){ showError(e); }
+};
+
+$('btn_exp_view').onclick = ()=>{
+  const nodes = CURRENT_GRAPH.nodes.map(id=>({GeneID:id}));
+  const edges = CURRENT_GRAPH.edges.map(e=>({source:e[0], target:e[1]}));
+  if(nodes.length===0 && edges.length===0){ alert('当前视图为空'); return; }
+  downloadCSV(nodes, 'current_nodes.csv');
+  downloadCSV(edges, 'current_edges.csv');
+};
+
+$('btn_exp_tables').onclick = ()=>{
+  const up = LAST_UP.map(x=>({upstream_regulator:x, seed: CURRENT_SEED||''}));
+  const down = LAST_DOWN.map(x=>({downstream_target:x, seed: CURRENT_SEED||''}));
+  if(up.length===0 && down.length===0){ alert('表格为空（请先选择节点或点击 Show ego 1-hop）'); return; }
+  downloadCSV(up, 'current_upstream.csv');
+  downloadCSV(down, 'current_downstream.csv');
+};
+
+
+function downloadText(text, filename, mime='text/plain;charset=utf-8;'){
+  const blob = new Blob([text], {type:mime});
+  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+
+function downloadCSV(rows, filename){
+  if(!rows || rows.length===0){ alert('empty'); return; }
+  const cols = Object.keys(rows[0]);
+  const csv = [cols.join(',')].concat(rows.map(r=>cols.map(c=> (r[c]===undefined||r[c]===null)?'':JSON.stringify(r[c])).join(','))).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+
+cy.on('tap','node', async evt=>{
+  const id = evt.target.id();
+  try{
+    const ann = await GET(`/api/node/${id}`);
+    $('info').innerHTML = infoHTML(ann);
+    const up = await GET(`/api/neighborhood/${id}?hops=1&direction=in`);
+    const down = await GET(`/api/neighborhood/${id}?hops=1&direction=out`);
+    fillTable('up', up.nodes.filter(x=>x!==id));
+    fillTable('down', down.nodes.filter(x=>x!==id));
+  }catch(e){ showError(e); }
+});
+
+window.addEventListener('load', ()=> $('ping').click());
+$('q').value = 'SCO5231'; // 默认示例
+</script>
+</body>
+</html>

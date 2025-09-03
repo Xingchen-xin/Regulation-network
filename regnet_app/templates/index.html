@@ -1,0 +1,1647 @@
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streptomyces coelicolor A32 调控网络分析</title>
+    
+    <!-- 引入Cytoscape.js -->
+    <script src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.19.0/cytoscape.min.js"></script>
+    
+    <!-- 引入Cytoscape.js布局扩展 -->
+    <script src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdnjs.cloudflare.com/ajax/libs/dagre/0.5.1/dagre.min.js"></script>
+    <script src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdnjs.cloudflare.com/ajax/libs/cytoscape-dagre/2.3.2/cytoscape-dagre.min.js"></script>
+    <script src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdnjs.cloudflare.com/ajax/libs/cose-base/1.0.0/cose-base.min.js"></script>
+    <script src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdnjs.cloudflare.com/ajax/libs/cytoscape-cose-bilkent/4.1.0/cytoscape-cose-bilkent.min.js"></script>
+    <script src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdnjs.cloudflare.com/ajax/libs/cytoscape-cola/2.5.1/cytoscape-cola.min.js"></script>
+    
+    <!-- 引入Bootstrap -->
+    <link href="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 引入Font Awesome -->
+    <link rel="stylesheet" href="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- 引入DataTables -->
+    <link rel="stylesheet" type="text/css" href="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+    <script type="text/javascript" src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://autoglm-api.zhipuai.cn/ppt-proxy/https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    
+    <!-- 自定义样式 -->
+    <style>
+        body {
+            font-family: 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif;
+            padding-top: 56px;
+        }
+        
+        #cy {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .control-panel {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .node-info-card {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .nav-tabs {
+            margin-bottom: 15px;
+        }
+        
+        .layout-btn {
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .highlight {
+            background-color: yellow !important;
+        }
+        
+        .path-highlight {
+            stroke-width: 3px !important;
+            stroke-color: #ff0000 !important;
+            line-color: #ff0000 !important;
+        }
+        
+        .node-highlight {
+            background-color: #ff0000 !important;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        .toast-container {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Streptomyces coelicolor A32 调控网络分析</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="network-tab">网络视图</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="topology-tab">拓扑分析</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="languageDropdown" data-bs-toggle="dropdown">
+                            <i class="fas fa-language"></i> 中文
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" data-lang="zh">中文</a></li>
+                            <li><a class="dropdown-item" href="#" data-lang="en">English</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- 主内容区 -->
+    <div class="container-fluid mt-3">
+        <!-- 网络视图 -->
+        <div id="network-view" class="view">
+            <div class="row">
+                <!-- 控制面板 -->
+                <div class="col-md-3">
+                    <div class="control-panel">
+                        <h5>控制面板</h5>
+                        
+                        <!-- 搜索框 -->
+                        <div class="mb-3">
+                            <label for="node-search" class="form-label">搜索节点</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="node-search" placeholder="输入基因ID...">
+                                <button class="btn btn-primary" id="search-btn">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 布局选择 -->
+                        <div class="mb-3">
+                            <label class="form-label">布局算法</label>
+                            <div>
+                                <button class="btn btn-outline-primary layout-btn" data-layout="cose">CoSE</button>
+                                <button class="btn btn-outline-primary layout-btn" data-layout="concentric">Concentric</button>
+                                <button class="btn btn-outline-primary layout-btn" data-layout="circle">Circle</button>
+                                <button class="btn btn-outline-primary layout-btn" data-layout="breadthfirst">Breadthfirst</button>
+                                <button class="btn btn-outline-primary layout-btn" data-layout="random">Random</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 邻域深度 -->
+                        <div class="mb-3">
+                            <label for="neighborhood-depth" class="form-label">邻域深度</label>
+                            <select class="form-select" id="neighborhood-depth">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" id="expand-btn">
+                                <i class="fas fa-expand-alt"></i> 展开邻域
+                            </button>
+                            <button class="btn btn-info" id="trace-btn">
+                                <i class="fas fa-project-diagram"></i> 追溯路径
+                            </button>
+                            <button class="btn btn-warning" id="shortest-path-btn">
+                                <i class="fas fa-route"></i> 最短路径
+                            </button>
+                            <button class="btn btn-secondary" id="reset-btn">
+                                <i class="fas fa-undo"></i> 重置视图
+                            </button>
+                            <button class="btn btn-danger" id="export-png-btn">
+                                <i class="fas fa-image"></i> 导出PNG
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 节点信息卡片 -->
+                    <div class="card node-info-card">
+                        <div class="card-header">
+                            <h5 class="mb-0">节点信息</h5>
+                        </div>
+                        <div class="card-body" id="node-info">
+                            <p class="text-muted">请点击网络中的节点查看详细信息</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 网络图 -->
+                <div class="col-md-9">
+                    <div id="cy"></div>
+                    
+                    <!-- 上下游基因表格 -->
+                    <ul class="nav nav-tabs" id="gene-tables-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="upstream-tab-btn" data-bs-toggle="tab" data-bs-target="#upstream-tab" type="button" role="tab">
+                                上游调控因子
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="downstream-tab-btn" data-bs-toggle="tab" data-bs-target="#downstream-tab" type="button" role="tab">
+                                下游靶基因
+                            </button>
+                        </li>
+                        <li class="nav-item ms-auto">
+                            <button class="btn btn-sm btn-success" id="export-csv-btn">
+                                <i class="fas fa-file-csv"></i> 导出CSV
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="gene-tables-content">
+                        <div class="tab-pane fade show active" id="upstream-tab" role="tabpanel">
+                            <div class="table-container mt-2">
+                                <table class="table table-striped table-hover" id="upstream-table">
+                                    <thead>
+                                        <tr>
+                                            <th>基因ID</th>
+                                            <th>类型</th>
+                                            <th>功能</th>
+                                            <th>GO Terms</th>
+                                            <th>代谢通路</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">请选择节点查看上游调控因子</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="downstream-tab" role="tabpanel">
+                            <div class="table-container mt-2">
+                                <table class="table table-striped table-hover" id="downstream-table">
+                                    <thead>
+                                        <tr>
+                                            <th>基因ID</th>
+                                            <th>类型</th>
+                                            <th>功能</th>
+                                            <th>GO Terms</th>
+                                            <th>代谢通路</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">请选择节点查看下游靶基因</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 拓扑分析视图 -->
+        <div id="topology-view" class="view" style="display: none;">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">网络拓扑分析</h5>
+                        </div>
+                        <div class="card-body" id="topology-content">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 加载提示 -->
+    <div class="loading" id="loading" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+    </div>
+    
+    <!-- Toast 通知 -->
+    <div class="toast-container"></div>
+    
+    <!-- 最短路径对话框 -->
+    <div class="modal fade" id="shortest-path-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">查找最短路径</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="source-node" class="form-label">源节点</label>
+                        <input type="text" class="form-control" id="source-node" placeholder="输入源节点ID...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="target-node" class="form-label">目标节点</label>
+                        <input type="text" class="form-control" id="target-node" placeholder="输入目标节点ID...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="find-path-btn">查找路径</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 自定义JavaScript -->
+    <script>
+        // 全局变量
+        let cy;
+        let currentLanguage = 'zh';
+        let selectedNode = null;
+        let upstreamTable = null;
+        let downstreamTable = null;
+        
+        // 多语言文本
+        const texts = {
+            zh: {
+                networkView: '网络视图',
+                topologyView: '拓扑分析',
+                searchNode: '搜索节点',
+                searchPlaceholder: '输入基因ID...',
+                layoutAlgorithm: '布局算法',
+                neighborhoodDepth: '邻域深度',
+                expandNeighborhood: '展开邻域',
+                tracePath: '追溯路径',
+                shortestPath: '最短路径',
+                resetView: '重置视图',
+                exportPNG: '导出PNG',
+                nodeInfo: '节点信息',
+                clickNodeForInfo: '请点击网络中的节点查看详细信息',
+                upstreamRegulators: '上游调控因子',
+                downstreamTargets: '下游靶基因',
+                exportCSV: '导出CSV',
+                selectNodeForUpstream: '请选择节点查看上游调控因子',
+                selectNodeForDownstream: '请选择节点查看下游靶基因',
+                networkTopology: '网络拓扑分析',
+                loading: '加载中...',
+                findShortestPath: '查找最短路径',
+                sourceNode: '源节点',
+                targetNode: '目标节点',
+                sourceNodePlaceholder: '输入源节点ID...',
+                targetNodePlaceholder: '输入目标节点ID...',
+                cancel: '取消',
+                findPath: '查找路径',
+                noPathFound: '未找到路径',
+                geneID: '基因ID',
+                type: '类型',
+                function: '功能',
+                goTerms: 'GO Terms',
+                pathways: '代谢通路',
+                basicProperties: '基本属性',
+                connectivity: '连通性',
+                clustering: '聚类系数',
+                degreeDistribution: '度分布',
+                centrality: '中心性',
+                community: '社区结构',
+                numNodes: '节点数',
+                numEdges: '边数',
+                density: '密度',
+                isWeaklyConnected: '弱连通',
+                isStronglyConnected: '强连通',
+                numSCC: '强连通分量数',
+                largestSCCSize: '最大强连通分量大小',
+                avgPathLength: '平均路径长度',
+                avgClustering: '平均聚类系数',
+                inDegrees: '入度',
+                outDegrees: '出度',
+                inDegreeCentrality: '入度中心性',
+                outDegreeCentrality: '出度中心性',
+                closenessCentrality: '紧密中心性',
+                pagerank: 'PageRank',
+                numCommunities: '社区数',
+                modularity: '模块度',
+                success: '成功',
+                error: '错误',
+                nodeNotFound: '未找到节点',
+                networkLoaded: '网络加载成功',
+                pathHighlighted: '路径已高亮显示',
+                neighborhoodExpanded: '邻域已展开',
+                viewReset: '视图已重置',
+                imageExported: '图像已导出',
+                csvExported: 'CSV文件已导出',
+                languageChanged: '语言已切换'
+            },
+            en: {
+                networkView: 'Network View',
+                topologyView: 'Topology Analysis',
+                searchNode: 'Search Node',
+                searchPlaceholder: 'Enter gene ID...',
+                layoutAlgorithm: 'Layout Algorithm',
+                neighborhoodDepth: 'Neighborhood Depth',
+                expandNeighborhood: 'Expand Neighborhood',
+                tracePath: 'Trace Path',
+                shortestPath: 'Shortest Path',
+                resetView: 'Reset View',
+                exportPNG: 'Export PNG',
+                nodeInfo: 'Node Information',
+                clickNodeForInfo: 'Click on a node in the network to view detailed information',
+                upstreamRegulators: 'Upstream Regulators',
+                downstreamTargets: 'Downstream Targets',
+                exportCSV: 'Export CSV',
+                selectNodeForUpstream: 'Select a node to view upstream regulators',
+                selectNodeForDownstream: 'Select a node to view downstream targets',
+                networkTopology: 'Network Topology Analysis',
+                loading: 'Loading...',
+                findShortestPath: 'Find Shortest Path',
+                sourceNode: 'Source Node',
+                targetNode: 'Target Node',
+                sourceNodePlaceholder: 'Enter source node ID...',
+                targetNodePlaceholder: 'Enter target node ID...',
+                cancel: 'Cancel',
+                findPath: 'Find Path',
+                noPathFound: 'No path found',
+                geneID: 'Gene ID',
+                type: 'Type',
+                function: 'Function',
+                goTerms: 'GO Terms',
+                pathways: 'Pathways',
+                basicProperties: 'Basic Properties',
+                connectivity: 'Connectivity',
+                clustering: 'Clustering',
+                degreeDistribution: 'Degree Distribution',
+                centrality: 'Centrality',
+                community: 'Community Structure',
+                numNodes: 'Number of Nodes',
+                numEdges: 'Number of Edges',
+                density: 'Density',
+                isWeaklyConnected: 'Weakly Connected',
+                isStronglyConnected: 'Strongly Connected',
+                numSCC: 'Number of SCCs',
+                largestSCCSize: 'Largest SCC Size',
+                avgPathLength: 'Average Path Length',
+                avgClustering: 'Average Clustering Coefficient',
+                inDegrees: 'In-degrees',
+                outDegrees: 'Out-degrees',
+                inDegreeCentrality: 'In-degree Centrality',
+                outDegreeCentrality: 'Out-degree Centrality',
+                closenessCentrality: 'Closeness Centrality',
+                pagerank: 'PageRank',
+                numCommunities: 'Number of Communities',
+                modularity: 'Modularity',
+                success: 'Success',
+                error: 'Error',
+                nodeNotFound: 'Node not found',
+                networkLoaded: 'Network loaded successfully',
+                pathHighlighted: 'Path highlighted',
+                neighborhoodExpanded: 'Neighborhood expanded',
+                viewReset: 'View reset',
+                imageExported: 'Image exported',
+                csvExported: 'CSV file exported',
+                languageChanged: 'Language changed'
+            }
+        };
+        
+        // 获取当前语言的文本
+        function t(key) {
+            return texts[currentLanguage][key] || key;
+        }
+        
+        // 显示Toast通知
+        function showToast(message, type = 'success') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toastId = 'toast-' + Date.now();
+            
+            const toastHtml = `
+                <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header">
+                        <i class="fas fa-${type === 'success' ? 'check-circle text-success' : 'exclamation-circle text-danger'} me-2"></i>
+                        <strong class="me-auto">${type === 'success' ? t('success') : t('error')}</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+            
+            // 自动移除Toast
+            toastElement.addEventListener('hidden.bs.toast', function () {
+                toastElement.remove();
+            });
+        }
+        
+        // 显示/隐藏加载提示
+        function toggleLoading(show) {
+            document.getElementById('loading').style.display = show ? 'flex' : 'none';
+        }
+        
+        // 初始化网络
+        function initNetwork() {
+            toggleLoading(true);
+            
+            // 获取网络数据
+            fetch('/api/network')
+                .then(response => response.json())
+                .then(data => {
+                    // 初始化Cytoscape
+                    cy = cytoscape({
+                        container: document.getElementById('cy'),
+                        elements: data.nodes.concat(data.edges),
+                        style: [
+                            {
+                                selector: 'node',
+                                style: {
+                                    'background-color': '#666',
+                                    'label': 'data(id)',
+                                    'text-valign': 'center',
+                                    'text-halign': 'center',
+                                    'font-size': '10px',
+                                    'width': 'mapData(total_degree, 0, 10, 20, 50)',
+                                    'height': 'mapData(total_degree, 0, 10, 20, 50)'
+                                }
+                            },
+                            {
+                                selector: 'node[type="regulator"]',
+                                style: {
+                                    'background-color': '#e74c3c'
+                                }
+                            },
+                            {
+                                selector: 'node[type="target"]',
+                                style: {
+                                    'background-color': '#3498db'
+                                }
+                            },
+                            {
+                                selector: 'node:selected',
+                                style: {
+                                    'border-width': '3px',
+                                    'border-color': '#f39c12',
+                                    'background-color': '#f39c12'
+                                }
+                            },
+                            {
+                                selector: 'node.highlight',
+                                style: {
+                                    'background-color': '#f1c40f'
+                                }
+                            },
+                            {
+                                selector: 'node.path-highlight',
+                                style: {
+                                    'background-color': '#e74c3c',
+                                    'border-width': '3px',
+                                    'border-color': '#c0392b'
+                                }
+                            },
+                            {
+                                selector: 'edge',
+                                style: {
+                                    'width': 1,
+                                    'line-color': '#999',
+                                    'target-arrow-color': '#999',
+                                    'target-arrow-shape': 'triangle',
+                                    'curve-style': 'bezier'
+                                }
+                            },
+                            {
+                                selector: 'edge[reg_to_reg=true]',
+                                style: {
+                                    'line-color': '#e74c3c',
+                                    'target-arrow-color': '#e74c3c',
+                                    'width': 2
+                                }
+                            },
+                            {
+                                selector: 'edge.highlight',
+                                style: {
+                                    'line-color': '#f1c40f',
+                                    'target-arrow-color': '#f1c40f',
+                                    'width': 3
+                                }
+                            },
+                            {
+                                selector: 'edge.path-highlight',
+                                style: {
+                                    'line-color': '#e74c3c',
+                                    'target-arrow-color': '#e74c3c',
+                                    'width': 3
+                                }
+                            }
+                        ],
+                        layout: {
+                            name: 'cose',
+                            animate: true,
+                            animationDuration: 1000,
+                            nodeRepulsion: 100000,
+                            idealEdgeLength: 100,
+                            edgeElasticity: 100,
+                            nestingFactor: 5,
+                            gravity: 80,
+                            numIter: 1000,
+                            initialTemp: 200,
+                            coolingFactor: 0.95,
+                            minTemp: 1.0
+                        }
+                    });
+                    
+                    // 添加节点点击事件
+                    cy.on('tap', 'node', function(evt) {
+                        const node = evt.target;
+                        selectNode(node.id());
+                    });
+                    
+                    // 添加背景点击事件
+                    cy.on('tap', function(evt) {
+                        if (evt.target === cy) {
+                            deselectNode();
+                        }
+                    });
+                    
+                    // 初始化表格
+                    initTables();
+                    
+                    toggleLoading(false);
+                    showToast(t('networkLoaded'));
+                })
+                .catch(error => {
+                    console.error('Error loading network:', error);
+                    toggleLoading(false);
+                    showToast(t('error') + ': ' + error.message, 'error');
+                });
+        }
+        
+        // 初始化表格
+        function initTables() {
+            // 上游调控因子表格
+            upstreamTable = $('#upstream-table').DataTable({
+                language: {
+                    url: currentLanguage === 'zh' ? '//cdn.datatables.net/plug-ins/1.11.5/i18n/zh.json' : '//cdn.datatables.net/plug-ins/1.11.5/i18n/en.json'
+                },
+                pageLength: 10,
+                responsive: true
+            });
+            
+            // 下游靶基因表格
+            downstreamTable = $('#downstream-table').DataTable({
+                language: {
+                    url: currentLanguage === 'zh' ? '//cdn.datatables.net/plug-ins/1.11.5/i18n/zh.json' : '//cdn.datatables.net/plug-ins/1.11.5/i18n/en.json'
+                },
+                pageLength: 10,
+                responsive: true
+            });
+        }
+        
+        // 选择节点
+        function selectNode(nodeId) {
+            // 高亮节点
+            cy.nodes().removeClass('highlight');
+            cy.getElementById(nodeId).addClass('highlight');
+            
+            // 获取节点信息
+            toggleLoading(true);
+            
+            fetch(`/api/node/${nodeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    selectedNode = nodeId;
+                    
+                    // 显示节点信息
+                    displayNodeInfo(data);
+                    
+                    // 更新表格
+                    updateTables(nodeId);
+                    
+                    toggleLoading(false);
+                })
+                .catch(error => {
+                    console.error('Error getting node info:', error);
+                    toggleLoading(false);
+                    showToast(t('error') + ': ' + error.message, 'error');
+                });
+        }
+        
+        // 取消选择节点
+        function deselectNode() {
+            selectedNode = null;
+            cy.nodes().removeClass('highlight');
+            
+            // 清空节点信息
+            document.getElementById('node-info').innerHTML = `<p class="text-muted">${t('clickNodeForInfo')}</p>`;
+            
+            // 清空表格
+            upstreamTable.clear().draw();
+            downstreamTable.clear().draw();
+        }
+        
+        // 显示节点信息
+        function displayNodeInfo(nodeInfo) {
+            if (!nodeInfo || Object.keys(nodeInfo).length === 0) {
+                document.getElementById('node-info').innerHTML = `<p class="text-muted">${t('nodeNotFound')}</p>`;
+                return;
+            }
+            
+            let html = `
+                <h6>${nodeInfo.id}</h6>
+                <p><strong>${t('type')}:</strong> ${nodeInfo.type}</p>
+                <p><strong>${t('inDegrees')}:</strong> ${nodeInfo.in_degree}</p>
+                <p><strong>${t('outDegrees')}:</strong> ${nodeInfo.out_degree}</p>
+                <p><strong>${t('totalDegree')}:</strong> ${nodeInfo.total_degree}</p>
+                <p><strong>SCC ID:</strong> ${nodeInfo.scc_id}</p>
+            `;
+            
+            if (nodeInfo.function) {
+                html += `<p><strong>${t('function')}:</strong> ${nodeInfo.function}</p>`;
+            }
+            
+            if (nodeInfo.go_terms && nodeInfo.go_terms.length > 0) {
+                html += `<p><strong>${t('goTerms')}:</strong> ${nodeInfo.go_terms.join(', ')}</p>`;
+            }
+            
+            if (nodeInfo.pathways && nodeInfo.pathways.length > 0) {
+                html += `<p><strong>${t('pathways')}:</strong> ${nodeInfo.pathways.join(', ')}</p>`;
+            }
+            
+            document.getElementById('node-info').innerHTML = html;
+        }
+        
+        // 更新表格
+        function updateTables(nodeId) {
+            toggleLoading(true);
+            
+            fetch(`/api/table/${nodeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // 更新上游调控因子表格
+                    upstreamTable.clear();
+                    if (data.upstream && data.upstream.length > 0) {
+                        data.upstream.forEach(item => {
+                            upstreamTable.row.add([
+                                item.id,
+                                item.type,
+                                item.function || '',
+                                item.go_terms || '',
+                                item.pathways || ''
+                            ]);
+                        });
+                    } else {
+                        upstreamTable.row.add([
+                            `<td colspan="5" class="text-center text-muted">${t('selectNodeForUpstream')}</td>`
+                        ]);
+                    }
+                    upstreamTable.draw();
+                    
+                    // 更新下游靶基因表格
+                    downstreamTable.clear();
+                    if (data.downstream && data.downstream.length > 0) {
+                        data.downstream.forEach(item => {
+                            downstreamTable.row.add([
+                                item.id,
+                                item.type,
+                                item.function || '',
+                                item.go_terms || '',
+                                item.pathways || ''
+                            ]);
+                        });
+                    } else {
+                        downstreamTable.row.add([
+                            `<td colspan="5" class="text-center text-muted">${t('selectNodeForDownstream')}</td>`
+                        ]);
+                    }
+                    downstreamTable.draw();
+                    
+                    toggleLoading(false);
+                })
+                .catch(error => {
+                    console.error('Error getting table data:', error);
+                    toggleLoading(false);
+                    showToast(t('error') + ': ' + error.message, 'error');
+                });
+        }
+        
+        // 展开邻域
+        function expandNeighborhood() {
+            if (!selectedNode) {
+                showToast(t('nodeNotFound'), 'error');
+                return;
+            }
+            
+            const depth = parseInt(document.getElementById('neighborhood-depth').value);
+            
+            toggleLoading(true);
+            
+            fetch('/api/subnetwork', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    nodes: [selectedNode],
+                    depth: depth
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 清除现有高亮
+                cy.elements().removeClass('highlight');
+                
+                // 添加新元素
+                const newElements = [];
+                
+                // 添加节点
+                data.nodes.forEach(node => {
+                    if (!cy.getElementById(node.data.id).length) {
+                        newElements.push(node);
+                    } else {
+                        // 高亮现有节点
+                        cy.getElementById(node.data.id).addClass('highlight');
+                    }
+                });
+                
+                // 添加边
+                data.edges.forEach(edge => {
+                    if (!cy.getElementById(edge.data.id).length) {
+                        newElements.push(edge);
+                    } else {
+                        // 高亮现有边
+                        cy.getElementById(edge.data.id).addClass('highlight');
+                    }
+                });
+                
+                // 添加新元素到网络
+                if (newElements.length > 0) {
+                    cy.add(newElements);
+                }
+                
+                // 应用布局
+                cy.layout({
+                    name: 'cose',
+                    animate: true,
+                    animationDuration: 1000,
+                    nodeRepulsion: 100000,
+                    idealEdgeLength: 100,
+                    edgeElasticity: 100,
+                    nestingFactor: 5,
+                    gravity: 80,
+                    numIter: 1000,
+                    initialTemp: 200,
+                    coolingFactor: 0.95,
+                    minTemp: 1.0
+                }).run();
+                
+                toggleLoading(false);
+                showToast(t('neighborhoodExpanded'));
+            })
+            .catch(error => {
+                console.error('Error expanding neighborhood:', error);
+                toggleLoading(false);
+                showToast(t('error') + ': ' + error.message, 'error');
+            });
+        }
+        
+        // 追溯路径
+        function tracePath() {
+            if (!selectedNode) {
+                showToast(t('nodeNotFound'), 'error');
+                return;
+            }
+            
+            const depth = parseInt(document.getElementById('neighborhood-depth').value);
+            
+            toggleLoading(true);
+            
+            fetch('/api/subnetwork', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    nodes: [selectedNode],
+                    depth: depth
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 清除现有高亮
+                cy.elements().removeClass('highlight');
+                
+                // 添加新元素
+                const newElements = [];
+                
+                // 添加节点
+                data.nodes.forEach(node => {
+                    if (!cy.getElementById(node.data.id).length) {
+                        newElements.push(node);
+                    } else {
+                        // 高亮现有节点
+                        cy.getElementById(node.data.id).addClass('highlight');
+                    }
+                });
+                
+                // 添加边
+                data.edges.forEach(edge => {
+                    if (!cy.getElementById(edge.data.id).length) {
+                        newElements.push(edge);
+                    } else {
+                        // 高亮现有边
+                        cy.getElementById(edge.data.id).addClass('highlight');
+                    }
+                });
+                
+                // 添加新元素到网络
+                if (newElements.length > 0) {
+                    cy.add(newElements);
+                }
+                
+                // 应用布局
+                cy.layout({
+                    name: 'breadthfirst',
+                    directed: true,
+                    animate: true,
+                    animationDuration: 1000,
+                    roots: `#${selectedNode}`
+                }).run();
+                
+                toggleLoading(false);
+                showToast(t('pathHighlighted'));
+            })
+            .catch(error => {
+                console.error('Error tracing path:', error);
+                toggleLoading(false);
+                showToast(t('error') + ': ' + error.message, 'error');
+            });
+        }
+        
+        // 查找最短路径
+        function findShortestPath(source, target) {
+            toggleLoading(true);
+            
+            fetch('/api/shortest_path', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    source: source,
+                    target: target
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 清除现有高亮
+                cy.elements().removeClass('path-highlight');
+                
+                if (data.path && data.path.length > 0) {
+                    // 高亮路径节点
+                    data.path.forEach(nodeId => {
+                        cy.getElementById(nodeId).addClass('path-highlight');
+                    });
+                    
+                    // 高亮路径边
+                    for (let i = 0; i < data.path.length - 1; i++) {
+                        const sourceId = data.path[i];
+                        const targetId = data.path[i + 1];
+                        const edge = cy.edges(`[source="${sourceId}"][target="${targetId}"]`);
+                        if (edge.length > 0) {
+                            edge.addClass('path-highlight');
+                        }
+                    }
+                    
+                    // 居中显示路径
+                    const pathNodes = data.path.map(nodeId => cy.getElementById(nodeId));
+                    cy.center(pathNodes);
+                    
+                    showToast(t('pathHighlighted'));
+                } else {
+                    showToast(t('noPathFound'), 'error');
+                }
+                
+                toggleLoading(false);
+            })
+            .catch(error => {
+                console.error('Error finding shortest path:', error);
+                toggleLoading(false);
+                showToast(t('error') + ': ' + error.message, 'error');
+            });
+        }
+        
+        // 重置视图
+        function resetView() {
+            // 清除高亮
+            cy.elements().removeClass('highlight path-highlight');
+            
+            // 重新应用布局
+            cy.layout({
+                name: 'cose',
+                animate: true,
+                animationDuration: 1000,
+                nodeRepulsion: 100000,
+                idealEdgeLength: 100,
+                edgeElasticity: 100,
+                nestingFactor: 5,
+                gravity: 80,
+                numIter: 1000,
+                initialTemp: 200,
+                coolingFactor: 0.95,
+                minTemp: 1.0
+            }).run();
+            
+            // 取消选择节点
+            deselectNode();
+            
+            showToast(t('viewReset'));
+        }
+        
+        // 导出PNG
+        function exportPNG() {
+            toggleLoading(true);
+            
+            const layout = cy.scratch('currentLayoutName') || 'cose';
+            
+            fetch('/api/export/png', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    layout: layout
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 创建下载链接
+                const link = document.createElement('a');
+                link.href = 'data:image/png;base64,' + data.image;
+                link.download = data.filename;
+                link.click();
+                
+                toggleLoading(false);
+                showToast(t('imageExported'));
+            })
+            .catch(error => {
+                console.error('Error exporting PNG:', error);
+                toggleLoading(false);
+                showToast(t('error') + ': ' + error.message, 'error');
+            });
+        }
+        
+        // 导出CSV
+        function exportCSV() {
+            if (!selectedNode) {
+                showToast(t('nodeNotFound'), 'error');
+                return;
+            }
+            
+            const activeTab = document.querySelector('#gene-tables-tabs .nav-link.active').id;
+            const tableType = activeTab === 'upstream-tab-btn' ? 'upstream' : 'downstream';
+            
+            toggleLoading(true);
+            
+            // 获取表格数据
+            const table = tableType === 'upstream' ? upstreamTable : downstreamTable;
+            const data = [];
+            
+            table.rows().every(function() {
+                const row = this.data();
+                if (row && row.length > 0 && !row[0].includes('colspan')) {
+                    data.push({
+                        'Gene ID': row[0],
+                        'Type': row[1],
+                        'Function': row[2],
+                        'GO Terms': row[3],
+                        'Pathways': row[4]
+                    });
+                }
+            });
+            
+            fetch('/api/export/csv', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    data: data,
+                    type: tableType,
+                    node_id: selectedNode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 创建下载链接
+                const link = document.createElement('a');
+                link.href = 'data:text/csv;base64,' + data.file;
+                link.download = data.filename;
+                link.click();
+                
+                toggleLoading(false);
+                showToast(t('csvExported'));
+            })
+            .catch(error => {
+                console.error('Error exporting CSV:', error);
+                toggleLoading(false);
+                showToast(t('error') + ': ' + error.message, 'error');
+            });
+        }
+        
+        // 加载拓扑分析数据
+        function loadTopologyAnalysis() {
+            toggleLoading(true);
+            
+            fetch('/api/topology')
+                .then(response => response.json())
+                .then(data => {
+                    let html = '';
+                    
+                    // 基本属性
+                    html += `
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h5>${t('basicProperties')}</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <tbody>
+                                            <tr>
+                                                <th>${t('numNodes')}</th>
+                                                <td>${data.basic_properties.num_nodes}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>${t('numEdges')}</th>
+                                                <td>${data.basic_properties.num_edges}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>${t('density')}</th>
+                                                <td>${data.basic_properties.density.toFixed(4)}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>${t('isWeaklyConnected')}</th>
+                                                <td>${data.basic_properties.is_weakly_connected ? 'Yes' : 'No'}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>${t('isStronglyConnected')}</th>
+                                                <td>${data.basic_properties.is_strongly_connected ? 'Yes' : 'No'}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 连通性
+                    html += `
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h5>${t('connectivity')}</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <tbody>
+                                            <tr>
+                                                <th>${t('numSCC')}</th>
+                                                <td>${data.connectivity.num_scc}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>${t('largestSCCSize')}</th>
+                                                <td>${data.connectivity.largest_scc_size}</td>
+                                            </tr>
+                `;
+                    
+                    if (data.connectivity.avg_path_length !== null) {
+                        html += `
+                                            <tr>
+                                                <th>${t('avgPathLength')}</th>
+                                                <td>${data.connectivity.avg_path_length.toFixed(4)}</td>
+                                            </tr>
+                        `;
+                    }
+                    
+                    html += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 聚类系数
+                    html += `
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <h5>${t('clustering')}</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <tbody>
+                                            <tr>
+                                                <th>${t('avgClustering')}</th>
+                                                <td>${data.clustering.avg_clustering.toFixed(4)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 度分布
+                    html += `
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h5>${t('inDegrees')}</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>度数</th>
+                                                <th>节点数</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                    `;
+                    
+                    // 计算入度分布
+                    const inDegreeDist = {};
+                    data.degree_distribution.in_degrees.forEach(degree => {
+                        inDegreeDist[degree] = (inDegreeDist[degree] || 0) + 1;
+                    });
+                    
+                    Object.keys(inDegreeDist).sort((a, b) => a - b).forEach(degree => {
+                        html += `
+                                            <tr>
+                                                <td>${degree}</td>
+                                                <td>${inDegreeDist[degree]}</td>
+                                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>${t('outDegrees')}</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>度数</th>
+                                                <th>节点数</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                    `;
+                    
+                    // 计算出度分布
+                    const outDegreeDist = {};
+                    data.degree_distribution.out_degrees.forEach(degree => {
+                        outDegreeDist[degree] = (outDegreeDist[degree] || 0) + 1;
+                    });
+                    
+                    Object.keys(outDegreeDist).sort((a, b) => a - b).forEach(degree => {
+                        html += `
+                                            <tr>
+                                                <td>${degree}</td>
+                                                <td>${outDegreeDist[degree]}</td>
+                                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 中心性
+                    if (data.centrality.in_degree_centrality) {
+                        html += `
+                            <div class="row mb-4">
+                                <div class="col-md-12">
+                                    <h5>${t('centrality')}</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>节点</th>
+                                                    <th>${t('inDegreeCentrality')}</th>
+                                                    <th>${t('outDegreeCentrality')}</th>
+                        `;
+                        
+                        if (data.centrality.closeness_centrality) {
+                            html += `<th>${t('closenessCentrality')}</th>`;
+                        }
+                        
+                        html += `<th>${t('pagerank')}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                        `;
+                        
+                        // 获取所有节点
+                        const nodes = Object.keys(data.centrality.in_degree_centrality);
+                        
+                        // 按PageRank排序
+                        nodes.sort((a, b) => {
+                            return data.centrality.pagerank[b] - data.centrality.pagerank[a];
+                        });
+                        
+                        // 只显示前20个节点
+                        const topNodes = nodes.slice(0, 20);
+                        
+                        topNodes.forEach(node => {
+                            html += `
+                                                <tr>
+                                                    <td>${node}</td>
+                                                    <td>${data.centrality.in_degree_centrality[node].toFixed(4)}</td>
+                                                    <td>${data.centrality.out_degree_centrality[node].toFixed(4)}</td>
+                            `;
+                            
+                            if (data.centrality.closeness_centrality) {
+                                html += `<td>${data.centrality.closeness_centrality[node].toFixed(4)}</td>`;
+                            }
+                            
+                            html += `<td>${data.centrality.pagerank[node].toFixed(4)}</td>
+                                                </tr>
+                            `;
+                        });
+                        
+                        html += `
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // 社区结构
+                    if (data.community.communities) {
+                        html += `
+                            <div class="row mb-4">
+                                <div class="col-md-12">
+                                    <h5>${t('community')}</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <tbody>
+                                                <tr>
+                                                    <th>${t('numCommunities')}</th>
+                                                    <td>${data.community.num_communities}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>${t('modularity')}</th>
+                                                    <td>${data.community.modularity.toFixed(4)}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    document.getElementById('topology-content').innerHTML = html;
+                    toggleLoading(false);
+                })
+                .catch(error => {
+                    console.error('Error loading topology analysis:', error);
+                    toggleLoading(false);
+                    showToast(t('error') + ': ' + error.message, 'error');
+                });
+        }
+        
+        // 更新界面语言
+        function updateLanguage(lang) {
+            currentLanguage = lang;
+            
+            // 更新导航栏
+            document.querySelector('#network-tab').textContent = t('networkView');
+            document.querySelector('#topology-tab').textContent = t('topologyView');
+            document.querySelector('#languageDropdown').innerHTML = `<i class="fas fa-language"></i> ${lang === 'zh' ? '中文' : 'English'}`;
+            
+            // 更新控制面板
+            document.querySelector('label[for="node-search"]').textContent = t('searchNode');
+            document.querySelector('#node-search').placeholder = t('searchPlaceholder');
+            document.querySelector('label[for="neighborhood-depth"]').textContent = t('neighborhoodDepth');
+            document.querySelector('#expand-btn').innerHTML = `<i class="fas fa-expand-alt"></i> ${t('expandNeighborhood')}`;
+            document.querySelector('#trace-btn').innerHTML = `<i class="fas fa-project-diagram"></i> ${t('tracePath')}`;
+            document.querySelector('#shortest-path-btn').innerHTML = `<i class="fas fa-route"></i> ${t('shortestPath')}`;
+            document.querySelector('#reset-btn').innerHTML = `<i class="fas fa-undo"></i> ${t('resetView')}`;
+            document.querySelector('#export-png-btn').innerHTML = `<i class="fas fa-image"></i> ${t('exportPNG')}`;
+            
+            // 更新节点信息卡片
+            document.querySelector('.node-info-card .card-header h5').textContent = t('nodeInfo');
+            if (!selectedNode) {
+                document.getElementById('node-info').innerHTML = `<p class="text-muted">${t('clickNodeForInfo')}</p>`;
+            }
+            
+            // 更新表格标签
+            document.querySelector('#upstream-tab-btn').textContent = t('upstreamRegulators');
+            document.querySelector('#downstream-tab-btn').textContent = t('downstreamTargets');
+            document.querySelector('#export-csv-btn').innerHTML = `<i class="fas fa-file-csv"></i> ${t('exportCSV')}`;
+            
+            // 更新表格列标题
+            if (upstreamTable) {
+                upstreamTable.column(0).header().textContent = t('geneID');
+                upstreamTable.column(1).header().textContent = t('type');
+                upstreamTable.column(2).header().textContent = t('function');
+                upstreamTable.column(3).header().textContent = t('goTerms');
+                upstreamTable.column(4).header().textContent = t('pathways');
+            }
+            
+            if (downstreamTable) {
+                downstreamTable.column(0).header().textContent = t('geneID');
+                downstreamTable.column(1).header().textContent = t('type');
+                downstreamTable.column(2).header().textContent = t('function');
+                downstreamTable.column(3).header().textContent = t('goTerms');
+                downstreamTable.column(4).header().textContent = t('pathways');
+            }
+            
+            // 更新最短路径对话框
+            document.querySelector('#shortest-path-modal .modal-title').textContent = t('findShortestPath');
+            document.querySelector('label[for="source-node"]').textContent = t('sourceNode');
+            document.querySelector('#source-node').placeholder = t('sourceNodePlaceholder');
+            document.querySelector('label[for="target-node"]').textContent = t('targetNode');
+            document.querySelector('#target-node').placeholder = t('targetNodePlaceholder');
+            document.querySelector('#find-path-btn').textContent = t('findPath');
+            document.querySelector('#shortest-path-modal .btn-secondary').textContent = t('cancel');
+            
+            // 更新拓扑分析视图
+            document.querySelector('#topology-view .card-header h5').textContent = t('networkTopology');
+            
+            // 重新加载拓扑分析数据（如果当前在拓扑分析视图）
+            if (document.getElementById('topology-view').style.display !== 'none') {
+                loadTopologyAnalysis();
+            }
+            
+            showToast(t('languageChanged'));
+        }
+        
+        // 初始化事件监听器
+        function initEventListeners() {
+            // 标签页切换
+            document.getElementById('network-tab').addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('network-view').style.display = 'block';
+                document.getElementById('topology-view').style.display = 'none';
+                document.getElementById('network-tab').classList.add('active');
+                document.getElementById('topology-tab').classList.remove('active');
+            });
+            
+            document.getElementById('topology-tab').addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('network-view').style.display = 'none';
+                document.getElementById('topology-view').style.display = 'block';
+                document.getElementById('network-tab').classList.remove('active');
+                document.getElementById('topology-tab').classList.add('active');
+                loadTopologyAnalysis();
+            });
+            
+            // 搜索节点
+            document.getElementById('search-btn').addEventListener('click', function() {
+                const searchTerm = document.getElementById('node-search').value.trim();
+                if (searchTerm) {
+                    const node = cy.getElementById(searchTerm);
+                    if (node.length > 0) {
+                        selectNode(searchTerm);
+                        cy.center(node);
+                    } else {
+                        showToast(t('nodeNotFound'), 'error');
+                    }
+                }
+            });
+            
+            // 布局选择
+            document.querySelectorAll('.layout-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const layout = this.getAttribute('data-layout');
+                    
+                    // 应用布局
+                    let layoutOptions;
+                    
+                    switch (layout) {
+                        case 'cose':
+                            layoutOptions = {
+                                name: 'cose',
+                                animate: true,
+                                animationDuration: 1000,
+                                nodeRepulsion: 100000,
+                                idealEdgeLength: 100,
+                                edgeElasticity: 100,
+                                nestingFactor: 5,
+                                gravity: 80,
+                                numIter: 1000,
+                                initialTemp: 200,
+                                coolingFactor: 0.95,
+                                minTemp: 1.0
+                            };
+                            break;
+                        case 'concentric':
+                            layoutOptions = {
+                                name: 'concentric',
+                                animate: true,
+                                animationDuration: 1000,
+                                concentric: function(node) {
+                                    return node.data('total_degree');
+                                },
+                                levelWidth: function(nodes) {
+                                    return 2;
+                                },
+                                minNodeSpacing: 10
+                            };
+                            break;
+                        case 'circle':
+                            layoutOptions = {
+                                name: 'circle',
+                                animate: true,
+                                animationDuration: 1000,
+                                radius: Math.min(cy.width(), cy.height()) / 2 - 50
+                            };
+                            break;
+                        case 'breadthfirst':
+                            layoutOptions = {
+                                name: 'breadthfirst',
+                                directed: true,
+                                animate: true,
+                                animationDuration: 1000,
+                                roots: selectedNode ? `#${selectedNode}` : undefined
+                            };
+                            break;
+                        case 'random':
+                            layoutOptions = {
+                                name: 'random',
+                                animate: true,
+                                animationDuration: 1000
+                            };
+                            break;
+                        default:
+                            layoutOptions = {
+                                name: 'cose',
+                                animate: true,
+                                animationDuration: 1000
+                            };
+                    }
+                    
+                    cy.layout(layoutOptions).run();
+                    cy.scratch('currentLayoutName', layout);
+                });
+            });
+            
+            // 展开邻域
+            document.getElementById('expand-btn').addEventListener('click', expandNeighborhood);
+            
+            // 追溯路径
+            document.getElementById('trace-btn').addEventListener('click', tracePath);
+            
+            // 最短路径
+            document.getElementById('shortest-path-btn').addEventListener('click', function() {
+                const modal = new bootstrap.Modal(document.getElementById('shortest-path-modal'));
+                modal.show();
+            });
+            
+            document.getElementById('find-path-btn').addEventListener('click', function() {
+                const source = document.getElementById('source-node').value.trim();
+                const target = document.getElementById('target-node').value.trim();
+                
+                if (source && target) {
+                    findShortestPath(source, target);
+                    bootstrap.Modal.getInstance(document.getElementById('shortest-path-modal')).hide();
+                }
+            });
+            
+            // 重置视图
+            document.getElementById('reset-btn').addEventListener('click', resetView);
+            
+            // 导出PNG
+            document.getElementById('export-png-btn').addEventListener('click', exportPNG);
+            
+            // 导出CSV
+            document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
+            
+            // 语言切换
+            document.querySelectorAll('[data-lang]').forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const lang = this.getAttribute('data-lang');
+                    
+                    // 更新服务器端语言设置
+                    fetch(`/api/language/${lang}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                updateLanguage(lang);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error changing language:', error);
+                            showToast(t('error') + ': ' + error.message, 'error');
+                        });
+                });
+            });
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initEventListeners();
+            initNetwork();
+        });
+    </script>
+</body>
+</html>
+    

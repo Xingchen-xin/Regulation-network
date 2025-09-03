@@ -1,0 +1,4 @@
+# 数据文件路径
+map: ./data/Streptomyces_coelicolor_A32_regulator_to_target_analysis.tsv.txt
+anno: ./data/scoelicolor_annotation_with_regulatory_links_v2.csv
+id_col: GeneID   # 如果 auto detect 失败，可以指定列名，比如 GeneID

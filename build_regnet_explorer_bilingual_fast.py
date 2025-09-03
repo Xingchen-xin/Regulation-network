@@ -85,7 +85,6 @@ def build(df: pd.DataFrame, out_html: Path):
 
     # Reg→Reg subgraph
     edges_rr = edges_all[edges_all["target"].isin(regs)]
-    edges_rr = edges_rr[edges_rr["regulator"] != edges_rr["target"]]
     Grr = nx.from_pandas_edgelist(
         edges_rr, source="regulator", target="target", create_using=nx.DiGraph())
 
@@ -275,6 +274,14 @@ const baseStyle=[
  {{ selector:'node[type = "target_only"]', style:{{'background-color':'#f9cb9c'}} }},
  {{ selector:'node[type = "both"]', style:{{'background-color':'#93c47d'}} }},
  {{ selector:'edge', style:{{'curve-style':'haystack','haystack-radius':2,'width':0.8,'line-color':'#bbb'}} }},
+ {{ selector:'edge[source = target]', style:{{ 
+        'curve-style':'bezier',
+        'control-point-step-size': 30,
+        'loop-direction': '-45deg',
+        'loop-sweep': '30deg',
+        'width': 1.2,
+        'line-color': '#999'
+ }} }},
  {{ selector:'.showLabel', style:{{'label':'data(label)'}} }},
  {{ selector:'.hiEdge', style:{{'line-color':'#ff6666','width':2,'curve-style':'bezier','target-arrow-shape':'triangle','target-arrow-color':'#ff6666'}} }},
  {{ selector:'.hiNode', style:{{'background-color':'#ff6666'}} }},
