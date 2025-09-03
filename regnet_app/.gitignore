@@ -1,1 +1,22 @@
-.venv
+# Python
+__pycache__/
+*.py[cod]
+*.log
+.venv/
+env/
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Project outputs
+grn_results/
+*.png
+*.gml
+*.json
+*.log
+
+# Data (如非必要请别入库；保留 README)
+data/*.tsv*
+data/*.csv
+!data/README.md
