@@ -440,70 +440,109 @@ class DataStore:
         return pd.DataFrame(rows)
         # --------- Motifs (FFL / Bi-fan) ---------
 
-    def motifs_ffl(self, rr_only: bool = False, limit: int = 50000):
+    def motifs_ffl(self, rr_only: bool = False, limit: int = 50000, induced: bool = False):
         """
         Feed-Forward Loop: A->B->C with A->C.
-        rr_only=True 时，仅保留 A、B、C 都是 TF 的 FFL；否则不限节点类型。
-        返回: [{'A':A,'B':B,'C':C}, ...] 去重后按发现顺序输出（最多 limit 条）。
+        - rr_only=True: 仅保留 A、B、C 都是 TF 的模式。
+        - induced=True: 要求在 {A,B,C} 诱导子图内除 (A->B),(B->C),(A->C) 外无额外边（如 B->A、C->A、C->B 等）。
+        另外：默认强制 A、B、C 为三个不同的节点（去除自环/重叠）。
+        返回: [{'A':A,'B':B,'C':C}, ...]，最多 limit 条。
         """
-        # 构建邻接与边集（用于 O(1) 查边）
-        E = set(map(tuple, self.rt[["regulator", "target"]].itertuples(
-            index=False, name=None)))
-        out = []
-        seen = set()
+        # 边集与后继表
+        E = set(map(tuple, self.rt[["regulator", "target"]].itertuples(index=False, name=None)))
+        from collections import defaultdict as _dd
+        succ = _dd(set)
+        for u, v in E:
+            succ[u].add(v)
+
+        out, seen = [], set()
         for a, b in E:
+            # 过滤自环与重复节点
+            if a == b:
+                continue
+            # rr_only: A、B 必须为 TF
             if rr_only and (a not in self.reg_set or b not in self.reg_set):
                 continue
-            # B 的下游是所有 C
-            for c in self.reg_to_targets.get(b, set()):
+            # B 的所有下游作为 C 候选
+            for c in succ.get(b, set()):
+                # 三个节点必须互异；可选：C 也必须是 TF（当 rr_only=True 时）
+                if c in (a, b):
+                    continue
                 if rr_only and (c not in self.reg_set):
                     continue
-                if (a, c) in E:
-                    key = (a, b, c)
-                    if key not in seen:
-                        seen.add(key)
-                        out.append({"A": a, "B": b, "C": c})
-                        if len(out) >= limit:
-                            return out
+                # 需要存在 A->C（形成 A->B->C 与 A->C 两条路径）
+                if c not in succ.get(a, set()):
+                    continue
+
+                if induced:
+                    # 诱导子图：禁止额外边（B->A、C->A、C->B）
+                    if (a in succ.get(b, set())) or (a in succ.get(c, set())) or (b in succ.get(c, set())):
+                        continue
+
+                key = (a, b, c)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append({"A": a, "B": b, "C": c})
+                if len(out) >= limit:
+                    return out
         return out
 
-    def motifs_bifan(self, min_shared: int = 2, rr_only: bool = True, limit: int = 50000, expand_limit_per_pair: int = 200):
+    def motifs_bifan(self, min_shared: int = 2, rr_only: bool = True, limit: int = 50000, expand_limit_per_pair: int = 200, induced: bool = False):
         """
-        Bi-fan: 两个上游 (A,B) 共同调控至少两个下游 (C,D)。默认 rr_only=True 要求 A、B 为 TF。
-        为控制规模：对每个 (A,B) 仅展开前 expand_limit_per_pair 个 (C,D) 组合；总体最多 limit 条。
-        返回: [{'A':A,'B':B,'C':C,'D':D}, ...] （A<B，C<D 做规范化去重）。
+        Bi-fan: 两个上游 (A,B) 共同调控至少两个下游 (C,D)。
+        - rr_only=True: 要求 A、B 为 TF（C、D 不做 TF 限制）。
+        - induced=True: 诱导子图要求：上层之间（A<->B）和下层之间（C<->D）不得存在额外边。
+        另外：默认强制 A、B、C、D 四个节点互异（top/bottom 不重叠）。
+        返回: [{'A':A,'B':B,'C':C,'D':D}, ...]（A<B 且 C<D），最多 limit 条；每个 (A,B) 最多展开 expand_limit_per_pair 个 (C,D)。
         """
         from itertools import combinations
-        pair2targets: Dict[tuple, Set[str]] = defaultdict(set)
+        from collections import defaultdict as _dd
 
-        # 遍历每个 target，累积其共同调控的 regulator 对
+        # 统计每对(A,B)共同调控的下游集合
+        pair2targets: Dict[tuple, Set[str]] = _dd(set)
         for t, regs in self.target_to_regs.items():
-            regs_list = sorted([r for r in regs if (
-                not rr_only or (r in self.reg_set))])
+            regs_list = sorted([r for r in regs if (not rr_only or (r in self.reg_set))])
             if len(regs_list) < 2:
                 continue
             for a, b in combinations(regs_list, 2):
+                if a == b:
+                    continue
                 pair2targets[(a, b)].add(t)
 
-        out = []
-        seen = set()
+        out, seen = [], set()
         for (a, b), ts in pair2targets.items():
-            if len(ts) < min_shared:
+            # 去除与 top 重叠的下游，确保 top/bottom 不重叠
+            cands = sorted([t for t in ts if t not in (a, b)])
+            if len(cands) < min_shared:
                 continue
-            # 可选：如果要求 C、D 也为 TF，可在此处过滤 ts = {t for t in ts if t in self.reg_set}
-            cands = sorted(ts)
+
             emitted = 0
-            # 展开 (C,D) 组合，但限制每对(A,B)最多 expand_limit_per_pair 个
             for i in range(len(cands)):
                 for j in range(i + 1, len(cands)):
                     c, d = cands[i], cands[j]
-                    quad = (a, b, c, d)
-                    if quad not in seen:
-                        seen.add(quad)
-                        out.append({"A": a, "B": b, "C": c, "D": d})
-                        emitted += 1
-                        if len(out) >= limit or emitted >= expand_limit_per_pair:
-                            break
+                    # 四条边均需存在（由构造已基本保证，此处再次显式校验）
+                    if (c not in self.reg_to_targets.get(a, set())) or \
+                       (c not in self.reg_to_targets.get(b, set())) or \
+                       (d not in self.reg_to_targets.get(a, set())) or \
+                       (d not in self.reg_to_targets.get(b, set())):
+                        continue
+
+                    if induced:
+                        # 禁止上层/下层额外边（保持双部结构）
+                        if (a in self.reg_to_targets.get(b, set())) or (b in self.reg_to_targets.get(a, set())):
+                            continue
+                        if (c in self.reg_to_targets.get(d, set())) or (d in self.reg_to_targets.get(c, set())):
+                            continue
+
+                    quad = (a, b, c, d)  # A<B, C<D 已由组合保证
+                    if quad in seen:
+                        continue
+                    seen.add(quad)
+                    out.append({"A": a, "B": b, "C": c, "D": d})
+                    emitted += 1
+                    if len(out) >= limit or emitted >= expand_limit_per_pair:
+                        break
                 if len(out) >= limit or emitted >= expand_limit_per_pair:
                     break
             if len(out) >= limit:
